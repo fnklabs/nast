@@ -1,0 +1,66 @@
+buildscript {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven { url 'http://dl.bintray.com/jfrog/jfrog-jars' }
+        maven { url "https://plugins.gradle.org/m2/" }
+    }
+    dependencies {
+        classpath "me.champeau.gradle:jmh-gradle-plugin:0.5.0"
+    }
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'idea'
+    apply plugin: 'maven'
+    apply plugin: "me.champeau.gradle.jmh"
+
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+
+    compileJava.options.encoding = 'UTF-8'
+    compileTestJava.options.encoding = 'UTF-8'
+
+    project.group = 'com.fnklabs.nast'
+    project.version = '0.1'
+
+    if (project.hasProperty("teamcity")) {
+        project.version = project.teamcity["build.number"]
+    }
+
+    configurations {
+        all*.exclude module: 'slf4j-log4j12'
+        all*.exclude module: 'hibernate-validator'
+        all*.exclude group: 'com.codahale.metrics'
+    }
+
+    ext {
+        vers = [
+                jmh     : "1.22",
+                junit   : '5.5.2',
+                jodatime: '2.9.2',
+                guava   : '28.1-jre',
+                intellij: '18.0.0',
+                lang3   : '3.3.2',
+                logback : '1.2.3',
+
+                metrics : '0.2.1',
+                mockito : '2.21.0',
+                slf4j   : '1.7.29',
+        ]
+    }
+
+    test {
+        useJUnitPlatform()
+        testLogging {
+            events "passed", "skipped", "failed"
+        }
+    }
+}
