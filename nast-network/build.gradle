@@ -1,0 +1,16 @@
+dependencies {
+    compile project(':nast-core')
+    compile project(':nast-commons')
+
+    implementation "com.google.guava:guava:$vers.guava"
+    implementation "org.slf4j:slf4j-api:$vers.slf4j"
+    implementation "org.jetbrains:annotations:$vers.intellij"
+
+    implementation "org.xerial.snappy:snappy-java:1.1.7.2"
+
+    jmh "org.openjdk.jmh:jmh-core:$vers.jmh"
+    jmh "org.openjdk.jmh:jmh-generator-annprocess:$vers.jmh"
+
+    testImplementation "ch.qos.logback:logback-classic:$vers.logback"
+    testImplementation("org.junit.jupiter:junit-jupiter:$vers.junit")
+}

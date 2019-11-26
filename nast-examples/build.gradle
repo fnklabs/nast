@@ -1,0 +1,6 @@
+dependencies {
+    compile project(":nast-commons")
+    compile project(":nast-core")
+
+    implementation "com.google.guava:guava:$vers.guava"
+}

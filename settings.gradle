@@ -1,0 +1,4 @@
+include "nast-commons"
+include "nast-core"
+include "nast-examples"
+include "nast-network"

@@ -1,0 +1,22 @@
+dependencies {
+    compile project(':nast-commons')
+
+    implementation "com.google.guava:guava:$vers.guava"
+    implementation "org.slf4j:slf4j-api:$vers.slf4j"
+    implementation "org.jetbrains:annotations:$vers.intellij"
+
+    implementation "org.xerial.snappy:snappy-java:1.1.7.2"
+
+    implementation "com.fnklabs:metrics-dropwizard:$vers.metrics"
+    implementation "com.fnklabs:metrics-core:$vers.metrics"
+
+    jmh "org.openjdk.jmh:jmh-core:$vers.jmh"
+    jmh "org.openjdk.jmh:jmh-generator-annprocess:$vers.jmh"
+    jmh "ch.qos.logback:logback-classic:$vers.logback"
+
+    testImplementation "ch.qos.logback:logback-classic:$vers.logback"
+    testImplementation("org.junit.jupiter:junit-jupiter:$vers.junit")
+
+    testImplementation("org.mockito:mockito-core:$vers.mockito")
+    testImplementation("org.mockito:mockito-junit-jupiter:$vers.mockito")
+}
