@@ -1,7 +1,5 @@
 package com.fnklabs.nast.network.io;
 
-import com.fnklabs.metrics.Metrics;
-import com.fnklabs.metrics.MetricsFactory;
 import com.fnklabs.nast.commons.Executors;
 import com.fnklabs.nast.network.io.frame.DataFrameMarshaller;
 import com.fnklabs.nast.network.io.frame.FrameException;
@@ -21,18 +19,11 @@ import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 
 abstract class AbstractNetworkChannel implements AutoCloseable {
-    protected static final Metrics METRICS = MetricsFactory.getMetrics();
-    /**
-     * Flag that determine whether client is running
-     */
-    protected final AtomicBoolean isRunning = new AtomicBoolean(true);
     /**
      * Connector pool executor
      */
@@ -64,14 +55,8 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
     public void close() throws Exception {
         getLogger().debug("closing channel...");
 
-        isRunning.set(false);
-
         for (ChannelWorker worker : workers) {
-            try {
-                worker.close();
-            } catch (IOException e) {
-                getLogger().warn("can't close worker", e);
-            }
+            worker.close();
         }
 
         getLogger().debug("shutdown channel executors ...");
@@ -94,16 +79,16 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
      * @param selector  Selector that could be using for registering channel
      * @param channel   SocketChannel for registering
      * @param operation Socket operation
-     * @param channelId channel id
+     * @param session   ChannelSession instance
      *
      * @return Selection key
      */
-    protected SelectionKey register(Selector selector, SelectableChannel channel, int operation, long channelId) throws ClosedChannelException {
+    protected SelectionKey register(Selector selector, SelectableChannel channel, int operation, ChannelSession session) throws ClosedChannelException {
         selector.wakeup();
 
-        getLogger().debug("wakeup selector and register operations for channel {}", channelId);
+        getLogger().debug("wakeup selector and register operations for channel {}", session);
 
-        SelectionKey register = channel.register(selector, operation, channelId);
+        SelectionKey register = channel.register(selector, operation, session);
 
         getLogger().debug("channel {} was registered on selector {} {}", channel, selector, register);
 
@@ -125,11 +110,9 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
 
                 Set<SelectionKey> selectionKeys = selector.selectedKeys();
 
-                List<SelectionKey> keys = new ArrayList<>(selectionKeys);
+                Iterator<SelectionKey> keysIterator = selectionKeys.iterator();
 
-                Iterator<SelectionKey> keysIterator = keys.iterator();
-
-                while (isRunning.get() && keysIterator.hasNext()) {
+                while (keysIterator.hasNext()) {
                     try {
                         SelectionKey key = keysIterator.next();
 
@@ -202,11 +185,10 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
      * @return SelectionKey associated with {@link Selector}
      */
     SelectionKey registerSession(ChannelSession channelSession) {
-        return getLessLoadedWorker().add(selector -> {
-            getLogger().debug("register SelectionKey.OP_READ | SelectionKey.OP_WRITE | SelectionKey.OP_CONNECT channel {} to selector {}", channelSession.getSocketChannel(), selector);
+        return getLessLoadedWorker().attach(selector -> {
 
             try {
-                return register(selector, channelSession.getSocketChannel(), SelectionKey.OP_READ | SelectionKey.OP_WRITE | SelectionKey.OP_CONNECT, channelSession.getId());
+                return register(selector, channelSession.getSocketChannel(), SelectionKey.OP_READ | SelectionKey.OP_WRITE | SelectionKey.OP_CONNECT, channelSession);
             } catch (ClosedChannelException e) {
                 getLogger().warn("can't register channel", e);
 
@@ -248,74 +230,55 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
     protected void processOpWrite(ChannelSession channelSession) {
         ByteBuffer outBuffer = channelSession.getOutBuffer();
 
-        // data for write already in buffer
-        // todo add opportunity to write several messages to buffer
-        if (!channelSession.getPendingWriteOperations().isEmpty() && outBuffer.remaining() > 0) {
-            getLogger().debug("write data from session.outBuffer (pending operations)");
+        // try write to out buffer
+        WriteFuture writeFuture = channelHandler.onWrite(channelSession);//channelSession.getOutgoingMsgQueue().peek();
+
+
+        if (writeFuture != null) {
+            ByteBuffer dataBuffer = writeFuture.getBuffer();
 
             try {
-                int writtenData = write(channelSession.getSocketChannel(), outBuffer);
+                outBuffer.compact();
 
-                getLogger().debug("`{}` bytes was send from out buffer {} response was send to channel [{}] total send bytes: {}", writtenData, outBuffer, channelSession.getId(), writtenData);
+                dataFrameMarshaller.encode(dataBuffer, outBuffer);
+
+                channelSession.getPendingWriteOperations().add(writeFuture);
+
+                outBuffer.flip();
+            } catch (FrameException e) {
+                getLogger().warn("can't encode frame", e);
+
+                writeFuture.completeExceptionally(e);
+
+            }
+        }
+        // data for write already in buffer
+        // todo add opportunity to write several messages to buffer
+
+        try {
+
+            if (!channelSession.getPendingWriteOperations().isEmpty()) {
+                int writtenData = write(channelSession.getSocketChannel(), outBuffer);
 
                 // remove pending operation future
 
-                if (outBuffer.remaining() == 0) {
-
-                    METRICS.getCounter(String.format("network.%s.io.frm.send", getClass().getSimpleName())).inc();
+                if (writtenData > 0 && outBuffer.remaining() == 0) {
 
                     for (WriteFuture pendingWriteOperation : channelSession.getPendingWriteOperations()) {
                         pendingWriteOperation.complete(null);
                     }
 
                     channelSession.getPendingWriteOperations().clear();
-
-                    outBuffer.compact();
-
-                } else {
-                    getLogger().debug("remaining data is available try to write later");
-                    return;
-                }
-            } catch (HostNotAvailableException e) {
-                getLogger().warn("host is not available. complete pending future with exception");
-
-                for (WriteFuture pendingWriteOperation : channelSession.getPendingWriteOperations()) {
-                    pendingWriteOperation.completeExceptionally(e);
-                }
-
-                channelSession.getPendingWriteOperations().clear();
-            }
-
-        }
-
-        if (channelSession.getPendingWriteOperations().isEmpty()) {
-
-            // try write to out buffer
-            WriteFuture writeFuture = channelHandler.onWrite(channelSession);//channelSession.getOutgoingMsgQueue().peek();
-
-
-            if (writeFuture != null) {
-                getLogger().debug("write data to out buffer");
-
-                ByteBuffer dataBuffer = writeFuture.getBuffer();
-
-                try {
-                    dataFrameMarshaller.encode(dataBuffer, outBuffer);
-
-                    METRICS.getCounter(String.format("network.%s.io.frm.encode", getClass().getSimpleName())).inc();
-
-                    channelSession.getPendingWriteOperations().add(writeFuture);
-
-                    outBuffer.flip();
-                } catch (FrameException e) {
-                    METRICS.getCounter(String.format("network.%s.io.frm.encode.failure", getClass().getSimpleName())).inc();
-
-                    writeFuture.completeExceptionally(e);
-
-                } finally {
-
                 }
             }
+        } catch (HostNotAvailableException e) {
+            getLogger().warn("host is not available. complete pending future with exception");
+
+            for (WriteFuture pendingWriteOperation : channelSession.getPendingWriteOperations()) {
+                pendingWriteOperation.completeExceptionally(e);
+            }
+
+            channelSession.getPendingWriteOperations().clear();
         }
 
     }
@@ -340,45 +303,19 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
         try {
             int readBytes = read(clientSocketChannel, channelInBuffer);
 
-            getLogger().debug("flip buffer {} after read {} bytes", channelInBuffer, readBytes);
-
             channelInBuffer.flip();
-
-            getLogger().debug("buffer was flipped {}", channelInBuffer);
 
             if (readBytes > 0 || channelInBuffer.remaining() > 0) {
 
-                getLogger().debug("data was read from channel {} {}", channelSession.getId(), readBytes);
-
                 for (; ; ) {
 
-                    getLogger().debug("get frame from buffer {}", channelInBuffer);
-
                     ByteBuffer frm = dataFrameMarshaller.decode(channelInBuffer);
-
-                    getLogger().debug("get frame {} from buffer {}", frm, channelInBuffer);
 
                     if (frm == null) {
                         break;
                     }
 
-                    METRICS.getCounter(String.format("network.%s.io.frm.decode", getClass().getSimpleName())).inc();
-
-                    CompletableFuture<Void> handleFuture = channelHandler.onRead(channelSession, frm);
-
-                    handleFuture.exceptionally(e -> {
-                        METRICS.getCounter(String.format("network.%s.io.frm.handle.failure", getClass().getSimpleName())).inc();
-                        getLogger().warn("can't handle frame for channel {}", channelSession, e);
-
-                        return null;
-                    });
-
-                    handleFuture.thenAccept(r -> {
-                        METRICS.getCounter(String.format("network.%s.io.frm.handle.success", getClass().getSimpleName())).inc();
-
-                        getLogger().debug("handle future was completed");
-                    });
-
+                    channelHandler.onRead(channelSession, frm);
                 }
 
             }
@@ -390,10 +327,7 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
             getLogger().warn("can't process selector [`{}`], {}", key.attachment(), key, e);
         } finally {
             if (channelInBuffer.position() != 0) {
-                getLogger().debug("compacting buffer {} before op read", channelInBuffer);
                 channelInBuffer.compact();
-
-                getLogger().debug("buffer was compacted {} before op read", channelInBuffer);
             }
         }
     }
@@ -414,22 +348,22 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
      *
      * @throws CancelledKeyException on key was canceled
      */
-    protected void processOp(SelectionKey selectionKey) throws CancelledKeyException {
-        if (selectionKey.isValid() && selectionKey.isConnectable()) {
+    protected void processIo(SelectionKey selectionKey) throws CancelledKeyException {
+        if (!selectionKey.isValid()) {
+            return;
+        }
+        if (selectionKey.isConnectable()) {
             this.processOpConnect(selectionKey);
         }
 
-        if (selectionKey.isValid() && selectionKey.isAcceptable()) {
-            this.processOpAccept(selectionKey);
+        if (selectionKey.isReadable()) {
+            this.processOpRead(selectionKey);
         }
 
-        if (selectionKey.isValid() && selectionKey.isWritable()) {
+        if (selectionKey.isWritable()) {
             this.processOpWrite(selectionKey);
         }
 
-        if (selectionKey.isValid() && selectionKey.isReadable()) {
-            this.processOpRead(selectionKey);
-        }
     }
 
     /**
@@ -445,12 +379,6 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
     private int write(SocketChannel socketChannel, ByteBuffer data) throws HostNotAvailableException {
         try {
             int writtenData = socketChannel.write(data);
-
-            socketChannel.socket().getOutputStream().flush();
-
-            METRICS.getCounter(String.format("network.%s.io.write", getClass().getSimpleName())).inc(writtenData);
-
-            getLogger().debug("write `{}` bytes to channel: {}", writtenData, socketChannel.getRemoteAddress());
 
             return writtenData;
         } catch (Exception e) {
@@ -474,10 +402,6 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
         try {
             int receivedBytes = socketChannel.read(buffer);
 
-            getLogger().debug("received `{}` bytes: from {}", receivedBytes, socketChannel.getRemoteAddress());
-
-            METRICS.getCounter(String.format("network.%s.io.read", getClass().getSimpleName())).inc(receivedBytes);
-
             /* Check if socket was closed */
             if (receivedBytes == -1) {
                 throw new ChannelClosedException(socketChannel);
@@ -487,10 +411,8 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
         } catch (IOException e) {
             // todo handle java.io.IOException: Connection reset by peer exception
             getLogger().error("Can't read from channel {}/{}", socketChannel, e);
+
+            throw new ChannelClosedException(socketChannel);
         }
-
-        return 0;
     }
-
-
 }

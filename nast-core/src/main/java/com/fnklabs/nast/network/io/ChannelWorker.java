@@ -1,25 +1,29 @@
 package com.fnklabs.nast.network.io;
 
+import com.fnklabs.nast.network.io.worker.Worker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class ChannelWorker implements Runnable, Closeable {
+public class ChannelWorker implements Worker {
     private final Selector selector;
 
     private final AtomicInteger connections = new AtomicInteger(0);
 
-    private final Function<Selector, Boolean> funcUnit;
+    private final Consumer<SelectionKey> funcUnit;
 
     private static final Logger log = LoggerFactory.getLogger(ChannelWorker.class);
 
-    ChannelWorker(Function<Selector, Boolean> funcUnit) {
+    private final AtomicBoolean isRunning = new AtomicBoolean(true);
+
+    public ChannelWorker(Consumer<SelectionKey> funcUnit) {
         this.funcUnit = funcUnit;
 
         try {
@@ -39,45 +43,54 @@ public class ChannelWorker implements Runnable, Closeable {
     public void run() {
         log.debug("run worker...");
 
-        try {
-            for (; ; ) {
-                if (selector.keys().isEmpty()) {
-                    continue;
-                }
-
-                try {
-                    if (!funcUnit.apply(getSelector())) {
-                        break;
-                    }
-                } catch (Exception e) {
-                    log.warn("can't process select", e);
-                }
+        while (isRunning.get()) {
+            if (selector.keys().isEmpty()) {
+                continue;
             }
 
-
-            log.debug("closing worker...");
-
-            close();
-        } catch (IOException ex) {
-            ex.printStackTrace();
+            try {
+                selector.select(funcUnit);
+            } catch (StopWorker | IOException e) {
+                isRunning.set(false);
+                log.warn("stop worker...", e);
+                break;
+            }
         }
 
-        log.debug("worker was closed");
+
+        log.info("closing worker...");
+
+        close();
+
+
+        log.info("worker was closed");
     }
 
-    SelectionKey add(Function<Selector, SelectionKey> unit) {
-        SelectionKey selectionKey = unit.apply(getSelector());
+    @Override
+    public SelectionKey attach(Function<Selector, SelectionKey> registrar) {
+        selector.wakeup();
+        selector.wakeup();
+
+        SelectionKey selectionKey = registrar.apply(getSelector());
 
         incConnections();
 
         return selectionKey;
     }
 
+
     @Override
-    public void close() throws IOException {
+    public void close() {
+        isRunning.set(false);
+
         selector.wakeup();
 
-        selector.close();
+        try {
+            selector.close();
+        } catch (IOException ex) {
+            log.warn("can't close selector", ex);
+        }
+
 
         while (selector.isOpen()) {
 
@@ -90,7 +103,7 @@ public class ChannelWorker implements Runnable, Closeable {
         return selector;
     }
 
-    int getConnections() {
+    public int getConnections() {
         return connections.get();
     }
 

@@ -61,4 +61,23 @@ public interface DataFrameMarshaller {
      */
     void encode(ByteBuffer dataBuf, ByteBuffer frameBuf) throws FrameException;
 
+
+    /**
+     * Get frame size from frame buffer
+     *
+     * @param frameBuffer FrameBuffer
+     *
+     * @return size of buffer
+     */
+    int getFrameSize(ByteBuffer frameBuffer);
+
+    /**
+     * Get target frame size for provided data buffer
+     *
+     * @param dataBuffer FrameBuffer
+     *
+     * @return size of framebuffer
+     */
+    int getTargetFrameSize(ByteBuffer dataBuffer);
+
 }

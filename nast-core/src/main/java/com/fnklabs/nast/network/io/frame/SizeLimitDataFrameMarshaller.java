@@ -24,8 +24,14 @@ public class SizeLimitDataFrameMarshaller implements DataFrameMarshaller {
 
     private static final Logger log = LoggerFactory.getLogger(SizeLimitDataFrameMarshaller.class);
 
-    private static int getFrameSize(ByteBuffer msgBuffer) {
-        return msgBuffer.getInt();
+    @Override
+    public int getFrameSize(ByteBuffer frameBuffer) {
+        return frameBuffer.getInt();
+    }
+
+    @Override
+    public int getTargetFrameSize(ByteBuffer dataBuffer) {
+        return dataBuffer.remaining() + HEADER_SIZE;
     }
 
     /**
@@ -50,8 +56,6 @@ public class SizeLimitDataFrameMarshaller implements DataFrameMarshaller {
             // todo check if frame size is greater than buffer capacity
 
             if (frmBuf.remaining() < frameSize - HEADER_SIZE) {
-                log.debug("not enough data. expected {} actual {}", frameSize, frmBuf);
-
                 return null;
             }
 
@@ -67,20 +71,14 @@ public class SizeLimitDataFrameMarshaller implements DataFrameMarshaller {
 
     @Override
     public void encode(ByteBuffer dataBuf, ByteBuffer frameBuf) throws FrameException {
-        log.debug("encoding frame. data: {} frame: {}", dataBuf, frameBuf);
-
         int dataSize = dataBuf.remaining();
 
         if (frameBuf.remaining() < HEADER_SIZE + dataSize) {
             throw new FrameException(String.format("can't encode frame. data is bigger then available buffer (%s > %s)", dataBuf, frameBuf));
         }
 
-        log.debug("encoding frame. data: {} frame: {}", dataBuf, frameBuf);
-
         writeHeader(frameBuf, dataSize);
         frameBuf.put(dataBuf);
-
-        log.debug("encode frame. frame: {}", frameBuf);
     }
 
 }
