@@ -82,6 +82,8 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
      * @param session   ChannelSession instance
      *
      * @return Selection key
+     *
+     * @throws ClosedChannelException on channel closed
      */
     protected SelectionKey register(Selector selector, SelectableChannel channel, int operation, ChannelSession session) throws ClosedChannelException {
         selector.wakeup();

@@ -121,6 +121,8 @@ public class ClientChannel extends AbstractNetworkChannel {
      * Send message to remote server
      *
      * @param data Data that must be sent
+     *
+     * @return Future for write to {@link SocketChannel}
      */
     public CompletableFuture<Void> send(ByteBuffer data) {
         return channelHandler.send(data);
