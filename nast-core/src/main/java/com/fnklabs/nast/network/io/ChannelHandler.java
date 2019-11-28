@@ -10,10 +10,8 @@ public interface ChannelHandler extends AutoCloseable {
 
     /**
      * Handle read event to process new data from frame buf
-     *
-     * @param data Input data
-     *
-     * @return Future for handing data and send reply to observer
+     *  @param data Input data
+     *@return
      */
     CompletableFuture<Void> onRead(Session session, ByteBuffer data);
 

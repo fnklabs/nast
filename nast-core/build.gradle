@@ -7,12 +7,18 @@ dependencies {
 
     implementation "org.xerial.snappy:snappy-java:1.1.7.2"
 
-    implementation "com.fnklabs:metrics-dropwizard:$vers.metrics"
-    implementation "com.fnklabs:metrics-core:$vers.metrics"
+    implementation ("com.fnklabs:metrics-dropwizard:$vers.metrics"){
+        exclude group: "com.intellij"
+    }
+    implementation ("com.fnklabs:metrics-core:$vers.metrics"){
+        exclude group: "com.intellij"
+    }
 
     jmh "org.openjdk.jmh:jmh-core:$vers.jmh"
     jmh "org.openjdk.jmh:jmh-generator-annprocess:$vers.jmh"
-    jmh "ch.qos.logback:logback-classic:$vers.logback"
+
+    jmh "io.netty:netty-all:$vers.netty"
+
 
     testImplementation "ch.qos.logback:logback-classic:$vers.logback"
     testImplementation("org.junit.jupiter:junit-jupiter:$vers.junit")

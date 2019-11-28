@@ -17,8 +17,8 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.lang.String.format;
@@ -35,16 +35,15 @@ public class ServerChannel extends AbstractNetworkChannel {
      */
     private final AtomicLong CHANNEL_ID_SEQUENCE = new AtomicLong(0);
 
-    private final Map<Long, ChannelSession> sessions = new TreeMap<>();
-
     private final ServerSocketChannel serverSocketChannel;
 
-    private int channelQueueSize;
+    private final ThreadPoolExecutor opAcceptPoolExecutor;
+    private final ChannelWorker opAcceptWorker;
 
     public ServerChannel(HostAndPort listenHostAndPort, ChannelHandler channelHandler, int connectorPoolSize) throws IOException {
         super(Executors.fixedPool(format("network.server.connector.io[%s]", listenHostAndPort), connectorPoolSize), channelHandler, new SizeLimitDataFrameMarshaller());
 
-        this.channelQueueSize = 1;
+        opAcceptPoolExecutor = Executors.fixedPool(format("network.server.accept[%s]", listenHostAndPort), 1);
 
         log.info("create server channel on {}", listenHostAndPort);
 
@@ -66,21 +65,17 @@ public class ServerChannel extends AbstractNetworkChannel {
 
             }
 
-            getLessLoadedWorker().add(selector -> {
+            opAcceptWorker = new ChannelWorker(selectionKey -> processOpAccept(selectionKey));
+
+            opAcceptPoolExecutor.submit(opAcceptWorker);
+
+            opAcceptWorker.attach(selector -> {
                 getLogger().debug("register SelectionKey.OP_ACCEPT channel {} to selector {}", serverSocketChannel, selector);
 
                 try {
                     selector.wakeup();
 
-                    SelectionKey selectionKey = register(selector, serverSocketChannel, SelectionKey.OP_ACCEPT, SERVER_CHANNEL_ID);
-
-
-                    Set<SelectionKey> keys = selector.keys();
-
-                    log.debug("current keys {}", keys);
-
-                    return selectionKey;
-
+                    return register(selector, serverSocketChannel, SelectionKey.OP_ACCEPT, null);
 
                 } catch (ClosedChannelException e) {
                     log.warn("can't register op keys", e);
@@ -103,6 +98,10 @@ public class ServerChannel extends AbstractNetworkChannel {
     public void close() throws Exception {
         log.debug("closing server channel {}...", serverSocketChannel);
 
+        opAcceptWorker.close();
+
+        Executors.shutdown(opAcceptPoolExecutor);
+
         super.close();
 
         try {
@@ -121,28 +120,15 @@ public class ServerChannel extends AbstractNetworkChannel {
 
     @Override
     protected ChannelWorker createWorker() {
-        return new ChannelWorker(selector -> {
-            if (isRunning.get()) {
-                select(selector, this::processOp);
-            }
-
-            return isRunning.get();
-        });
+        return new ChannelWorker(selector -> processIo(selector));
     }
 
     @Override
     protected void closeChannel(SelectionKey key, SelectableChannel selectableChannel) {
 
-        long channelId = (long) key.attachment();
+        ChannelSession channelSession = (ChannelSession) key.attachment();
 
-        log.debug("close channel {}/{}", channelId, selectableChannel);
-
-        ChannelSession channelSession = sessions.remove(channelId);
-
-        if (channelSession != null) {
-            channelSession.close();
-
-        }
+        log.debug("close channel {}/{}", channelSession, selectableChannel);
 
         super.closeChannel(key, selectableChannel);
 
@@ -151,7 +137,7 @@ public class ServerChannel extends AbstractNetworkChannel {
 
     @Override
     public void processOpWrite(SelectionKey key) {
-        ChannelSession channelSession = sessions.get(key.attachment());
+        ChannelSession channelSession = (ChannelSession)key.attachment();
 
         try {
             processOpWrite(channelSession);
@@ -165,11 +151,7 @@ public class ServerChannel extends AbstractNetworkChannel {
     public void processOpRead(SelectionKey key) {
         SocketChannel clientSocketChannel = (SocketChannel) key.channel();
 
-        long channelId = (long) key.attachment();
-
-        log.debug("new read event from client: {}", channelId);
-
-        ChannelSession channelSession = sessions.get(channelId);
+        ChannelSession channelSession = (ChannelSession)key.attachment();
 
         processOpRead(key, clientSocketChannel, channelSession);
     }
@@ -195,11 +177,7 @@ public class ServerChannel extends AbstractNetworkChannel {
 
                 ChannelSession channelSession = createChannelSession(channelId, clientChannel); //  todo move queueSize to parameters
 
-                sessions.put(channelId, channelSession);
-
                 SelectionKey selectionKey = registerSession(channelSession);
-
-                channelSession.onClose(id -> closeChannel(selectionKey, clientChannel));
             }
         } catch (Exception e) {
             log.warn("can't process selector [`{}`], {}", key.attachment(), key, e);
@@ -208,11 +186,17 @@ public class ServerChannel extends AbstractNetworkChannel {
 
     @Override
     protected void processOpConnect(SelectionKey selectionKey) {
-        long channelId = (long) selectionKey.attachment();
+        ChannelSession channelSession = (ChannelSession) selectionKey.attachment();
 
-        ChannelSession channelSession = sessions.remove(channelId);
+        selectionKey.cancel();
 
-        log.warn("process op connect for channel {}/{}", channelId, channelSession);
+        try {
+            selectionKey.channel().close();
+        } catch (IOException e) {
+            log.warn("can't close channel {}", selectionKey.channel());
+        }
+
+        log.warn("process op connect for channel {}/{}", channelSession, channelSession);
 
         if (channelSession != null) {
             channelSession.close();

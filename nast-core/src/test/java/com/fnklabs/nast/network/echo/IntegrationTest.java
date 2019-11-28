@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 
 public class IntegrationTest {
 
-    public static final int ATTEMPTS = 1_00;
+    public static final int ATTEMPTS = 1_000;
     private static final Logger log = LoggerFactory.getLogger(IntegrationTest.class);
     public static final int CONNECTOR_POOL_SIZE = 1;
 
@@ -48,12 +48,13 @@ public class IntegrationTest {
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 3})
     public void syncRequests(int parallelClients) throws Exception {
-        server = new ServerChannel(hostAndPort, new ServerEchoChannelHandler(1000), parallelClients);
         executorService = Executors.fixedPool("test", parallelClients, ATTEMPTS);
+
+        server = new ServerChannel(hostAndPort, new ServerEchoChannelHandler(100), parallelClients);
 
         ClientChannel[] clients = new ClientChannel[parallelClients];
 
-        ClientChannelHandler communicationHandler = new ClientChannelHandler(1000);
+        ClientChannelHandler communicationHandler = new ClientChannelHandler(100);
 
         for (int i = 0; i < parallelClients; i++) {
             clients[i] = new ClientChannel(hostAndPort, communicationHandler);
@@ -111,6 +112,57 @@ public class IntegrationTest {
                 log.info("futures {}", communicationHandler.REPLY_FUTURES);
             }
         }
+
+        for (ClientChannel client : clients) {
+            client.close();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 3, 10})
+    public void syncWrite(int parallelClients) throws Exception {
+        executorService = Executors.fixedPool("test", parallelClients, ATTEMPTS);
+
+        server = new ServerChannel(hostAndPort, new ServerNoOpChannelHandler(3), parallelClients);
+
+        ClientChannel[] clients = new ClientChannel[parallelClients];
+
+        ClientNoOpHandler communicationHandler = new ClientNoOpHandler(1);
+
+        for (int i = 0; i < parallelClients; i++) {
+            clients[i] = new ClientChannel(hostAndPort, communicationHandler);
+        }
+
+
+        CountDownLatch countDownLatch = new CountDownLatch(ATTEMPTS);
+
+        for (int i = 0; i < ATTEMPTS; i++) {
+            int idx = i;
+
+            executorService.submit(() -> {
+
+                ClientChannel client = clients[idx % parallelClients];
+
+                ByteBuffer dataBuffer = ByteBuffer.allocate(8);
+                dataBuffer.putInt(idx);
+                dataBuffer.putInt(idx);
+
+                dataBuffer.flip();
+
+                log.debug("send {} to {}", idx, client);
+
+                CompletableFuture<Void> completableFuture = client.send(dataBuffer);
+
+                log.debug("await {}", idx);
+
+                Futures.getUnchecked(completableFuture);
+
+                countDownLatch.countDown();
+
+            });
+        }
+
+        countDownLatch.await(15, TimeUnit.SECONDS);
 
         for (ClientChannel client : clients) {
             client.close();

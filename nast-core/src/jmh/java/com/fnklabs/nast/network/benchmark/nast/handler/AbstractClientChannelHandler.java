@@ -1,18 +1,20 @@
-package com.fnklabs.nast.network;
+package com.fnklabs.nast.network.benchmark.nast.handler;
 
 import com.fnklabs.nast.network.io.Session;
 import com.fnklabs.nast.network.io.WriteFuture;
 import com.fnklabs.nast.network.io.WriteOperationQueueLimited;
 
 import java.nio.ByteBuffer;
+import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Client channel handler
  */
 public abstract class AbstractClientChannelHandler implements com.fnklabs.nast.network.io.ClientChannelHandler {
 
-    private final ArrayBlockingQueue<WriteFuture> writeFutureQueue;
+    private final Queue<WriteFuture> writeFutureQueue;
 
     public AbstractClientChannelHandler(int writeFutureQueueSize) {
         writeFutureQueue = new ArrayBlockingQueue<>(writeFutureQueueSize);
@@ -21,7 +23,6 @@ public abstract class AbstractClientChannelHandler implements com.fnklabs.nast.n
 
     @Override
     public WriteFuture onWrite(Session session) {
-
         return writeFutureQueue.poll();
     }
 
@@ -45,7 +46,7 @@ public abstract class AbstractClientChannelHandler implements com.fnklabs.nast.n
         WriteFuture writeFuture = new WriteFuture(dataBuf);
 
         if (!writeFutureQueue.offer(writeFuture)) {
-            writeFuture.completeExceptionally(new WriteOperationQueueLimited(String.format("remaining capacity is %d", writeFutureQueue.remainingCapacity())));
+            writeFuture.completeExceptionally(new WriteOperationQueueLimited(String.format("remaining queue size: %d", writeFutureQueue.size())));
         }
 
         return writeFuture;

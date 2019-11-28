@@ -25,7 +25,6 @@ public class ChatServerChannelHandler implements ChannelHandler {
             queue.offer(new WriteFuture(ByteBuffer.wrap(msg.getBytes())));
         });
 
-        return CompletableFuture.completedFuture(null);
     }
 
     @Override

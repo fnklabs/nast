@@ -8,8 +8,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Consumer;
 
 /**
  * Current implementation is not thread safe and thread safe must is guarantied by
@@ -23,21 +21,20 @@ class ChannelSession implements Session, Closeable {
      * Incoming messages buffer
      */
     private final ByteBuffer inBuffer;
-
-    private final SocketChannel socketChannel;
-
-    private final List<Consumer<Long>> listeners = new CopyOnWriteArrayList<>();
-
     private final ByteBuffer outBuffer;
 
+
+
+    private final SocketChannel socketChannel;
     private final List<WriteFuture> pendingWriteOperations = new ArrayList<>();
 
     ChannelSession(long id, SocketChannel socketChannel) {
         this.id = id;
         this.socketChannel = socketChannel;
 
-        inBuffer = ByteBuffer.allocateDirect(64 * 1024); // todo move buffer size to parameters
-        outBuffer = ByteBuffer.allocateDirect(64 * 1024); // todo move buffer size to parameters
+        inBuffer = ByteBuffer.allocate(64 * 1024); // todo move buffer size to parameters
+        outBuffer = ByteBuffer.allocate(64 * 1024); // todo move buffer size to parameters
+        outBuffer.flip();
     }
 
     public List<WriteFuture> getPendingWriteOperations() {
@@ -59,9 +56,6 @@ class ChannelSession implements Session, Closeable {
 
     @Override
     public void close() {
-        for (Consumer<Long> listener : listeners) {
-            listener.accept(id);
-        }
     }
 
 
@@ -75,14 +69,5 @@ class ChannelSession implements Session, Closeable {
 
     SocketChannel getSocketChannel() {
         return socketChannel;
-    }
-
-    /**
-     * Add on close listener
-     *
-     * @param onCloseListener
-     */
-    void onClose(Consumer<Long> onCloseListener) {
-        listeners.add(onCloseListener);
     }
 }

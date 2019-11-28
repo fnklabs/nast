@@ -7,4 +7,8 @@ import java.nio.ByteBuffer;
  */
 public class WriteOperationQueueLimited extends NetworkException {
     public WriteOperationQueueLimited() {}
+
+    public WriteOperationQueueLimited(String message) {
+        super(message);
+    }
 }

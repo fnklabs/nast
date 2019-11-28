@@ -84,7 +84,7 @@ public class Executors {
             Thread.currentThread().interrupt();
         }
 
-        executorService.awaitTermination(1, TimeUnit.MINUTES);
+        executorService.awaitTermination(5, TimeUnit.SECONDS);
     }
 
 

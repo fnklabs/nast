@@ -74,10 +74,6 @@ public class ClientChannel extends AbstractNetworkChannel {
 
             SelectionKey selectionKey = registerSession(channelSession);
 
-            channelSession.onClose(id -> {
-                closeChannel(selectionKey, channelSession.getSocketChannel());
-            });
-
             while (!channelSession.getSocketChannel().isRegistered()) {
                 // await registering in worker
             }
@@ -106,13 +102,7 @@ public class ClientChannel extends AbstractNetworkChannel {
 
     @Override
     protected ChannelWorker createWorker() {
-        return new ChannelWorker(selector -> {
-            if (isRunning.get()) {
-                select(selector, this::processOp);
-            }
-
-            return isRunning.get();
-        });
+        return new ChannelWorker(this::processIo);
     }
 
     @Override
@@ -133,8 +123,6 @@ public class ClientChannel extends AbstractNetworkChannel {
      * @param data Data that must be sent
      */
     public CompletableFuture<Void> send(ByteBuffer data) {
-        log.debug("send data data {}", data);
-
         return channelHandler.send(data);
     }
 }
