@@ -15,17 +15,12 @@ import java.nio.ByteBuffer;
  * Let buffer size = 8 bytes
  * Frame size = 8 bytes
  * </pre>
- * <p>
  *
  * <pre>
  *     [ F1 ], [F1]
  * </pre>
- * <p>
  * Frame was not fully read from network IO, so frame could not be decoded and will decoded as soon as new data will appeared on socket and read
  *
- * </b></b>
- * <p>
- * <p>
  * buffer contains several part of frame
  * <pre>
  * Let buffer size = 16 bytes
@@ -35,9 +30,8 @@ import java.nio.ByteBuffer;
  * <pre>
  *     [ F1, F2, F3 ], [ F3, F5, F6 ]
  * </pre>
- * <p>
  * In this case in buffer could be several frame or part of frame.
- * In this case expected that from buffer will be read buffer that could be fully read. This solulution give another problem when
+ * In this case expected that from buffer will be read buffer that could be fully read. This solution give another problem when
  */
 public interface DataFrameMarshaller {
 

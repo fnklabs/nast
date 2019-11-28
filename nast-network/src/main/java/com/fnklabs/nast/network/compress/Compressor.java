@@ -9,6 +9,8 @@ public interface Compressor {
      *
      * @param data Data buffer
      * @param buf  Output buffer
+     *
+     * @throws IOException if can't compress data
      */
     void compress(ByteBuffer data, ByteBuffer buf) throws IOException;
 
@@ -17,6 +19,8 @@ public interface Compressor {
      *
      * @param buf  Input buffer
      * @param data Data buffer
+     *
+     * @throws IOException if can't uncompress data
      */
     void uncompress(ByteBuffer buf, ByteBuffer data) throws IOException;
 }

@@ -10,13 +10,18 @@ public interface ChannelHandler extends AutoCloseable {
 
     /**
      * Handle read event to process new data from frame buf
-     *  @param data Input data
-     *@return
+     *
+     * @param data    Input data
+     * @param session Channel session
+     *
+     * @return future for read operations
      */
     CompletableFuture<Void> onRead(Session session, ByteBuffer data);
 
     /**
      * Handle write event to write new data through ovbesrver
+     *
+     * @param session Client session
      *
      * @return ByteBuffer to write or null of nothing to write
      */
