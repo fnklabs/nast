@@ -1,5 +1,7 @@
 package com.fnklabs.nast.network.io;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 
@@ -25,9 +27,22 @@ public interface ChannelHandler extends AutoCloseable {
      *
      * @return ByteBuffer to write or null of nothing to write
      */
+    @Nullable
     WriteFuture onWrite(Session session);
 
+    /**
+     * Handle disconnect connect event
+     *
+     * @param session Session that was disconnected
+     */
     void onDisconnect(Session session);
+
+    /**
+     * Handle channel IO exception
+     *
+     * @param e Exception that was occur and must be processed
+     */
+    default void onException(Throwable e) {}
 
     @Override
     default void close() throws Exception {}

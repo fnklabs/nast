@@ -50,7 +50,6 @@ Network lib for building async and fast client-serer application.
   Pool    
 ```
 
-
 ## Network layer
 Network layer responsible for 
 * read/write data from/to network IO
@@ -67,6 +66,13 @@ Application layer must work in additional thread pool and doesn't block network 
 All communication must be over queue 
 
 ## Examples
+
+## Install
+
+```gradle
+    implementation "com.fnklabs.nast:nast-core:0.3.0"
+    implementation "com.fnklabs.nast:nast-examples:0.3.0"
+```
 
 * [Chat server](./nast-examples/README.md)
 

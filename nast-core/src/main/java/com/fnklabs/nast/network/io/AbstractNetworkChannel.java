@@ -233,7 +233,7 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
         ByteBuffer outBuffer = channelSession.getOutBuffer();
 
         // try write to out buffer
-        WriteFuture writeFuture = channelHandler.onWrite(channelSession);//channelSession.getOutgoingMsgQueue().peek();
+        WriteFuture writeFuture = channelHandler.onWrite(channelSession);
 
 
         if (writeFuture != null) {
@@ -251,8 +251,13 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
                 getLogger().warn("can't encode frame", e);
 
                 writeFuture.completeExceptionally(e);
-
             }
+
+            writeFuture.exceptionally(e -> {
+                channelHandler.onException(e);
+
+                return null;
+            });
         }
         // data for write already in buffer
         // todo add opportunity to write several messages to buffer

@@ -23,8 +23,8 @@ subprojects {
         mavenCentral()
     }
 
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
 
     compileJava.options.encoding = 'UTF-8'
     compileTestJava.options.encoding = 'UTF-8'
@@ -108,7 +108,6 @@ subprojects {
         }
         repositories {
             maven {
-                // change URLs to point to your repos, e.g. http://my.org/repo
                 def releasesRepoUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
                 def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"
                 url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
@@ -122,7 +121,7 @@ subprojects {
 
     signing {
         required { !version.endsWith('SNAPSHOT') && gradle.taskGraph.hasTask("publish") }
-//        sign publishing.publications.mavenJava
+        sign publishing.publications.mavenJava
     }
 
 
