@@ -7,6 +7,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.util.ConcurrentModificationException;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -49,7 +52,23 @@ public class ChannelWorker implements Worker {
             }
 
             try {
-                selector.select(funcUnit);
+                int select = selector.select();
+
+                if (select > 0) {
+                    Set<SelectionKey> selectedKeys = selector.selectedKeys();
+
+                    Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
+
+                    while (keyIterator.hasNext()) {
+                        SelectionKey selectionKey = keyIterator.next();
+
+                        funcUnit.accept(selectionKey);
+
+                        selectedKeys.remove(selectionKey);
+                    }
+                }
+            } catch (ConcurrentModificationException e) {
+                // no-op
             } catch (StopWorker | IOException e) {
                 isRunning.set(false);
                 log.warn("stop worker...", e);
