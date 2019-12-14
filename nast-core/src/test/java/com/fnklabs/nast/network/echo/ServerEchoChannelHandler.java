@@ -23,19 +23,14 @@ class ServerEchoChannelHandler extends AbstractServerChannelHandler {
 
     @Override
     public CompletableFuture<Void> onRead(Session session, ByteBuffer data) {
-        int requestID = data.getInt();
-        int value = data.getInt();
+        ByteBuffer respBuf = ByteBuffer.allocate(data.remaining());
 
-        log.debug("retrieve request {}: {}", requestID, value);
-
-        ByteBuffer buffer = ByteBuffer.allocate(8);
-        buffer.putInt(requestID);
-        buffer.putInt(value);
-        buffer.flip();
+        respBuf.put(data);
+        respBuf.flip();
 
         Queue<WriteFuture> queue = getClientQueue(session);
 
-        WriteFuture writeFuture = new WriteFuture(buffer);
+        WriteFuture writeFuture = new WriteFuture(respBuf);
 
         if (!queue.offer(writeFuture)) {
             writeFuture.completeExceptionally(new WriteOperationQueueLimited());

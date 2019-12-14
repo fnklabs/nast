@@ -5,6 +5,8 @@ import com.fnklabs.metrics.MetricsFactory;
 import com.fnklabs.nast.commons.Executors;
 import com.fnklabs.nast.network.io.ClientChannel;
 import com.fnklabs.nast.network.io.ServerChannel;
+import com.fnklabs.nast.network.io.SocketOptionsConfigurer;
+import com.fnklabs.nast.network.io.SocketOptionsConfigurerBuilder;
 import com.google.common.net.HostAndPort;
 import com.google.common.util.concurrent.Futures;
 import org.junit.jupiter.api.AfterEach;
@@ -21,6 +23,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class IntegrationTest {
 
@@ -67,7 +71,7 @@ public class IntegrationTest {
             int idx = i;
 
             executorService.submit(() -> {
-                CompletableFuture<Integer> replyFuture = new CompletableFuture<>();
+                CompletableFuture<ByteBuffer> replyFuture = new CompletableFuture<>();
 
                 ClientChannel client = clients[idx % parallelClients];
 
@@ -193,7 +197,7 @@ public class IntegrationTest {
         for (int i = 0; i < ATTEMPTS; i++) {
             int idx = i;
 
-            CompletableFuture<Integer> replyFuture = new CompletableFuture<>();
+            CompletableFuture<ByteBuffer> replyFuture = new CompletableFuture<>();
 
             executorService.submit(() -> {
                 int clientIdx = idx % parallelClients;
@@ -292,6 +296,66 @@ public class IntegrationTest {
                 throw e;
             }
 
+        }
+    }
+
+
+    @ParameterizedTest
+    @ValueSource(ints = {64, 1024, 2048})
+    public void syncMsgBiggerThanSndAndRcvBuffer(int dataLength) throws Exception {
+        SocketOptionsConfigurer optionsConfigurer = SocketOptionsConfigurerBuilder.builder()
+                                                                                  .rcvBuffer(32)
+                                                                                  .sndBuffer(32)
+                                                                                  .build();
+
+
+        server = new ServerChannel(hostAndPort, new ServerEchoChannelHandler(100), optionsConfigurer, 1);
+
+
+        ClientChannelHandler communicationHandler = new ClientChannelHandler(100);
+
+        byte[] data = new byte[dataLength];
+
+        for (int i = 0; i < dataLength; i++) {
+            data[i] = (byte) (i % 128);
+        }
+
+        try (ClientChannel client = new ClientChannel(hostAndPort, communicationHandler)) {
+
+            for (int i = 0; i < ATTEMPTS; i++) {
+
+                CompletableFuture<ByteBuffer> replyFuture = new CompletableFuture<>();
+
+                communicationHandler.REPLY_FUTURES.put(i, replyFuture);
+
+                log.debug("send {} to {}", i, client);
+
+                ByteBuffer dataBuf = ByteBuffer.allocate(dataLength + Integer.BYTES);
+                dataBuf.putInt(i);
+                dataBuf.put(data);
+                dataBuf.flip();
+
+                CompletableFuture<Void> completableFuture = client.send(dataBuf);
+
+                completableFuture.exceptionally(e -> {
+                    replyFuture.completeExceptionally(e);
+
+                    return null;
+                });
+
+
+                log.debug("await {}", i);
+
+                ByteBuffer byteBuffer = replyFuture.get();
+
+                dataBuf.rewind();
+
+                assertEquals(dataBuf.remaining(), byteBuffer.remaining());
+
+                while (dataBuf.remaining() > 0) {
+                    assertEquals(dataBuf.get(), byteBuffer.get());
+                }
+            }
         }
     }
 

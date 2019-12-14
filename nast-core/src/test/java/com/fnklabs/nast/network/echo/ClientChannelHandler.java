@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ClientChannelHandler extends AbstractClientChannelHandler {
 
-    public final Map<Integer, CompletableFuture<Integer>> REPLY_FUTURES = new ConcurrentHashMap<>();
+    public final Map<Integer, CompletableFuture<ByteBuffer>> REPLY_FUTURES = new ConcurrentHashMap<>();
 
 
     public ClientChannelHandler(int writeFutureQueueSize) {
@@ -23,17 +23,16 @@ public class ClientChannelHandler extends AbstractClientChannelHandler {
 
     @Override
     public CompletableFuture<Void> onRead(Session session, ByteBuffer data) {
-        int requestId = data.getInt();
-        int value = data.getInt();
+        int requestId = data.duplicate().getInt();
 
-        LoggerFactory.getLogger(getClass()).debug("retrieve response from server {}: {}", requestId, value);
+        LoggerFactory.getLogger(getClass()).debug("retrieve response from server {}", requestId);
 
-        CompletableFuture<Integer> reply = REPLY_FUTURES.remove(requestId);
+        CompletableFuture<ByteBuffer> reply = REPLY_FUTURES.remove(requestId);
 
         if (reply != null) {
-            reply.complete(value);
+            reply.complete(data);
         } else {
-            throw new IllegalStateException("retrieve unknown reply " + requestId + ": " + value);
+            throw new IllegalStateException("retrieve unknown reply " + requestId + ": " + data);
         }
 
         return CompletableFuture.completedFuture(null);

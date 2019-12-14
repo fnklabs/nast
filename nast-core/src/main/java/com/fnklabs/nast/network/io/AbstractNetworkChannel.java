@@ -138,8 +138,8 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
     /**
      * Create channel session
      *
-     * @param channelID     {@link ChannelSession#id} value
-     * @param socketChannel {@link ChannelSession#socketChannel} value
+     * @param channelID     {@link ChannelSession#getId()} value
+     * @param socketChannel {@link ChannelSession#getSocketChannel()} value
      *
      * @return Channel session instance
      */
@@ -312,17 +312,25 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
 
             channelInBuffer.flip();
 
-            if (readBytes > 0 || channelInBuffer.remaining() > 0) {
+            if (readBytes > 0) {
 
                 for (; ; ) {
 
                     ByteBuffer frm = dataFrameMarshaller.decode(channelInBuffer);
 
                     if (frm == null) {
+                        if (channelInBuffer.remaining() > 0) {
+                            channelInBuffer.compact();
+                        } else {
+                            channelInBuffer.clear();
+                        }
+
                         break;
                     }
 
                     channelHandler.onRead(channelSession, frm);
+
+
                 }
 
             }
@@ -332,10 +340,6 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
             closeChannel(key, clientSocketChannel);
         } catch (Exception e) {
             getLogger().warn("can't process selector [`{}`], {}", key.attachment(), key, e);
-        } finally {
-            if (channelInBuffer.position() != 0) {
-                channelInBuffer.compact();
-            }
         }
     }
 

@@ -40,21 +40,25 @@ public class ClientChannel extends AbstractNetworkChannel {
      */
     private final ChannelSession channelSession;
 
+    private final SocketOptionsConfigurer socketOptionsConfigurer;
 
     public ClientChannel(HostAndPort remoteAddress, ClientChannelHandler channelHandler) throws ConnectionException {
+        this(remoteAddress, channelHandler, SocketOptionsConfigurerBuilder.builder().build());
+    }
+
+    public ClientChannel(HostAndPort remoteAddress, ClientChannelHandler channelHandler, SocketOptionsConfigurer socketOptionsConfigurer) throws ConnectionException {
         super(Executors.fixedPool(String.format("network.client.connector.io[%s]", remoteAddress), 1), channelHandler, new SizeLimitDataFrameMarshaller());
 
         this.remoteAddress = remoteAddress;
         this.channelHandler = channelHandler;
+        this.socketOptionsConfigurer = socketOptionsConfigurer;
 
         log.warn("building client: {}", remoteAddress);
 
         try {
             channel = SocketChannel.open();
-            channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
-            channel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
-            channel.setOption(StandardSocketOptions.SO_SNDBUF, 1024);
-            channel.setOption(StandardSocketOptions.SO_RCVBUF, 1024);
+
+            socketOptionsConfigurer.apply(channel);
 
             channel.configureBlocking(false);
 
