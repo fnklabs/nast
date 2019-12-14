@@ -10,14 +10,11 @@ import java.io.IOException;
 import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.net.StandardSocketOptions;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -39,10 +36,15 @@ public class ServerChannel extends AbstractNetworkChannel {
 
     private final ThreadPoolExecutor opAcceptPoolExecutor;
     private final ChannelWorker opAcceptWorker;
+    private final SocketOptionsConfigurer socketOptionsConfigurer;
 
     public ServerChannel(HostAndPort listenHostAndPort, ChannelHandler channelHandler, int connectorPoolSize) throws IOException {
-        super(Executors.fixedPool(format("network.server.connector.io[%s]", listenHostAndPort), connectorPoolSize), channelHandler, new SizeLimitDataFrameMarshaller());
+        this(listenHostAndPort, channelHandler, SocketOptionsConfigurerBuilder.builder().build(), connectorPoolSize);
+    }
 
+    public ServerChannel(HostAndPort listenHostAndPort, ChannelHandler channelHandler, SocketOptionsConfigurer socketOptionsConfigurer, int connectorPoolSize) throws IOException {
+        super(Executors.fixedPool(format("network.server.connector.io[%s]", listenHostAndPort), connectorPoolSize), channelHandler, new SizeLimitDataFrameMarshaller());
+        this.socketOptionsConfigurer = socketOptionsConfigurer;
         opAcceptPoolExecutor = Executors.fixedPool(format("network.server.accept[%s]", listenHostAndPort), 1);
 
         log.info("create server channel on {}", listenHostAndPort);
@@ -137,7 +139,7 @@ public class ServerChannel extends AbstractNetworkChannel {
 
     @Override
     public void processOpWrite(SelectionKey key) {
-        ChannelSession channelSession = (ChannelSession)key.attachment();
+        ChannelSession channelSession = (ChannelSession) key.attachment();
 
         try {
             processOpWrite(channelSession);
@@ -151,7 +153,7 @@ public class ServerChannel extends AbstractNetworkChannel {
     public void processOpRead(SelectionKey key) {
         SocketChannel clientSocketChannel = (SocketChannel) key.channel();
 
-        ChannelSession channelSession = (ChannelSession)key.attachment();
+        ChannelSession channelSession = (ChannelSession) key.attachment();
 
         processOpRead(key, clientSocketChannel, channelSession);
     }
@@ -168,12 +170,9 @@ public class ServerChannel extends AbstractNetworkChannel {
             if (clientChannel != null) {
                 log.info("new client connection: {}", clientChannel.getRemoteAddress());
 
-                clientChannel.setOption(StandardSocketOptions.TCP_NODELAY, true);
-                clientChannel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
-                clientChannel.setOption(StandardSocketOptions.SO_SNDBUF, 1024);
-                clientChannel.setOption(StandardSocketOptions.SO_RCVBUF, 1024);
-                clientChannel.configureBlocking(false);
+                socketOptionsConfigurer.apply(clientChannel);
 
+                clientChannel.configureBlocking(false);
 
                 ChannelSession channelSession = createChannelSession(channelId, clientChannel); //  todo move queueSize to parameters
 
