@@ -24,7 +24,6 @@ class ChannelSession implements Session, Closeable {
     private final ByteBuffer outBuffer;
 
 
-
     private final SocketChannel socketChannel;
     private final List<WriteFuture> pendingWriteOperations = new ArrayList<>();
 
@@ -55,8 +54,7 @@ class ChannelSession implements Session, Closeable {
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 
 
     @Override

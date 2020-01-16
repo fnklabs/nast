@@ -3,6 +3,7 @@ package com.fnklabs.nast.network;
 import com.fnklabs.nast.network.io.Session;
 import com.fnklabs.nast.network.io.WriteFuture;
 import com.fnklabs.nast.network.io.WriteOperationQueueLimited;
+import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -45,8 +46,11 @@ public abstract class AbstractClientChannelHandler implements com.fnklabs.nast.n
         WriteFuture writeFuture = new WriteFuture(dataBuf);
 
         if (!writeFutureQueue.offer(writeFuture)) {
+            LoggerFactory.getLogger(getClass()).warn("can't send data outgoing queue is full");
             writeFuture.completeExceptionally(new WriteOperationQueueLimited(String.format("remaining capacity is %d", writeFutureQueue.remainingCapacity())));
         }
+
+        LoggerFactory.getLogger(getClass()).debug("put write future to outgoing queue {}", writeFutureQueue);
 
         return writeFuture;
     }

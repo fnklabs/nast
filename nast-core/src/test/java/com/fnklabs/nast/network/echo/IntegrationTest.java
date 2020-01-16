@@ -11,6 +11,7 @@ import com.google.common.net.HostAndPort;
 import com.google.common.util.concurrent.Futures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.Logger;
@@ -170,6 +171,46 @@ public class IntegrationTest {
 
         for (ClientChannel client : clients) {
             client.close();
+        }
+    }
+
+
+    @Test
+    public void syncRequestsSendAndClose() throws Exception {
+        server = new ServerChannel(hostAndPort, new ServerEchoChannelHandler(1000), 1);
+
+
+        ClientChannelHandler communicationHandler = new ClientChannelHandler(1000);
+
+        for (int i = 0; i < ATTEMPTS; i++) {
+
+            try (ClientChannel client = new ClientChannel(hostAndPort, communicationHandler)) {
+
+                CompletableFuture<ByteBuffer> replyFuture = new CompletableFuture<>();
+
+                communicationHandler.REPLY_FUTURES.put(i, replyFuture);
+
+                ByteBuffer dataBuffer = ByteBuffer.allocate(8);
+                dataBuffer.putInt(i);
+                dataBuffer.putInt(i);
+
+                dataBuffer.flip();
+
+                log.debug("send {} to {}", i, client);
+
+                CompletableFuture<Void> completableFuture = client.send(dataBuffer);
+
+                completableFuture.exceptionally(e -> {
+                    replyFuture.completeExceptionally(e);
+
+                    return null;
+                });
+
+                log.debug("await {}", i);
+
+                replyFuture.get(5, TimeUnit.SECONDS);
+            }
+            log.debug("----------------------------");
         }
     }
 

@@ -169,6 +169,9 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
      * @param selectableChannel SocketChannel that must be closed
      */
     void closeChannel(SelectionKey key, SelectableChannel selectableChannel) {
+        ChannelSession session = (ChannelSession) key.attachment();
+        getLogger().debug("close session {} channel {}", session, selectableChannel);
+
         key.cancel();
 
         try {
@@ -176,6 +179,12 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
         } catch (IOException e) {
             getLogger().warn("Can't close channel", e);
         }
+
+        session.close();
+
+        key.selector().wakeup();
+
+        throw new SessionClosed();
     }
 
     /**
@@ -267,6 +276,7 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
             if (!channelSession.getPendingWriteOperations().isEmpty()) {
                 int writtenData = write(channelSession.getSocketChannel(), outBuffer);
 
+                getLogger().debug("data ({} bytes) was send", writtenData);
                 // remove pending operation future
 
                 if (writtenData > 0 && outBuffer.remaining() == 0) {
@@ -307,39 +317,40 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
     protected void processOpRead(SelectionKey key, SocketChannel clientSocketChannel, ChannelSession channelSession) {
         ByteBuffer channelInBuffer = channelSession.getInBuffer();
 
-        try {
-            int readBytes = read(clientSocketChannel, channelInBuffer);
+        getLogger().debug("process opRead for {} key operations isValid {} isReadable {} isWritable {} isConnectable {}", channelSession,
+                          key.isValid(), key.isReadable(), key.isWritable(), key.isConnectable()
+        );
 
-            channelInBuffer.flip();
+        int readBytes = read(clientSocketChannel, channelInBuffer);
 
-            if (readBytes > 0) {
+        /* Check if socket was closed */
+        if (readBytes == -1) {
+            getLogger().warn("channel was closed: {} session: {}", clientSocketChannel, channelSession);
+            throw new ChannelClosedException(clientSocketChannel);
+        }
 
-                for (; ; ) {
+        getLogger().debug("received {} bytes from {}", readBytes, channelSession);
 
-                    ByteBuffer frm = dataFrameMarshaller.decode(channelInBuffer);
+        channelInBuffer.flip();
 
-                    if (frm == null) {
-                        if (channelInBuffer.remaining() > 0) {
-                            channelInBuffer.compact();
-                        } else {
-                            channelInBuffer.clear();
-                        }
+        if (readBytes > 0) {
 
-                        break;
+            for (; ; ) {
+
+                ByteBuffer frm = dataFrameMarshaller.decode(channelInBuffer);
+
+                if (frm == null) {
+                    if (channelInBuffer.remaining() > 0) {
+                        channelInBuffer.compact();
+                    } else {
+                        channelInBuffer.clear();
                     }
 
-                    channelHandler.onRead(channelSession, frm);
-
-
+                    break;
                 }
 
+                channelHandler.onRead(channelSession, frm);
             }
-
-
-        } catch (ChannelClosedException e) {
-            closeChannel(key, clientSocketChannel);
-        } catch (Exception e) {
-            getLogger().warn("can't process selector [`{}`], {}", key.attachment(), key, e);
         }
     }
 
@@ -360,21 +371,26 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
      * @throws CancelledKeyException on key was canceled
      */
     protected void processIo(SelectionKey selectionKey) throws CancelledKeyException {
-        if (!selectionKey.isValid()) {
-            return;
-        }
-        if (selectionKey.isConnectable()) {
-            this.processOpConnect(selectionKey);
-        }
+        try {
+            if (!selectionKey.isValid()) {
+                return;
+            }
+            if (selectionKey.isConnectable()) {
+                this.processOpConnect(selectionKey);
+            }
 
-        if (selectionKey.isReadable()) {
-            this.processOpRead(selectionKey);
-        }
+            if (selectionKey.isReadable()) {
+                this.processOpRead(selectionKey);
+            }
 
-        if (selectionKey.isWritable()) {
-            this.processOpWrite(selectionKey);
+            if (selectionKey.isWritable()) {
+                this.processOpWrite(selectionKey);
+            }
+        } catch (ChannelClosedException e) {
+            closeChannel(selectionKey, selectionKey.channel());
+        } catch (HostNotAvailableException e) {
+            closeChannel(selectionKey, selectionKey.channel());
         }
-
     }
 
     /**
@@ -411,14 +427,7 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
      */
     private int read(SocketChannel socketChannel, ByteBuffer buffer) throws ChannelClosedException {
         try {
-            int receivedBytes = socketChannel.read(buffer);
-
-            /* Check if socket was closed */
-            if (receivedBytes == -1) {
-                throw new ChannelClosedException(socketChannel);
-            }
-
-            return receivedBytes;
+            return socketChannel.read(buffer);
         } catch (IOException e) {
             // todo handle java.io.IOException: Connection reset by peer exception
             getLogger().error("Can't read from channel {}/{}", socketChannel, e);

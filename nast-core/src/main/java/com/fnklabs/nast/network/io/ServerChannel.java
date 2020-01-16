@@ -11,7 +11,6 @@ import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.channels.ClosedChannelException;
-import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
@@ -67,7 +66,7 @@ public class ServerChannel extends AbstractNetworkChannel {
 
             }
 
-            opAcceptWorker = new ChannelWorker(selectionKey -> processOpAccept(selectionKey));
+            opAcceptWorker = new ChannelWorker(this::processOpAccept);
 
             opAcceptPoolExecutor.submit(opAcceptWorker);
 
@@ -126,27 +125,10 @@ public class ServerChannel extends AbstractNetworkChannel {
     }
 
     @Override
-    protected void closeChannel(SelectionKey key, SelectableChannel selectableChannel) {
-
-        ChannelSession channelSession = (ChannelSession) key.attachment();
-
-        log.debug("close channel {}/{}", channelSession, selectableChannel);
-
-        super.closeChannel(key, selectableChannel);
-
-        // todo decrement worker weight
-    }
-
-    @Override
     public void processOpWrite(SelectionKey key) {
         ChannelSession channelSession = (ChannelSession) key.attachment();
 
-        try {
-            processOpWrite(channelSession);
-        } catch (Exception e) {
-            log.warn("can't write data for channel {}/{}", key.attachment(), channelSession, e);
-        }
-
+        processOpWrite(channelSession);
     }
 
     @Override
@@ -185,21 +167,9 @@ public class ServerChannel extends AbstractNetworkChannel {
 
     @Override
     protected void processOpConnect(SelectionKey selectionKey) {
-        ChannelSession channelSession = (ChannelSession) selectionKey.attachment();
+        log.warn("process op connect for session {}", selectionKey.attachment());
 
-        selectionKey.cancel();
-
-        try {
-            selectionKey.channel().close();
-        } catch (IOException e) {
-            log.warn("can't close channel {}", selectionKey.channel());
-        }
-
-        log.warn("process op connect for channel {}/{}", channelSession, channelSession);
-
-        if (channelSession != null) {
-            channelSession.close();
-        }
+        closeChannel(selectionKey, selectionKey.channel());
     }
 
     /**
