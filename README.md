@@ -91,19 +91,19 @@ All communication must be over queue
 ### Result
 ```
 Benchmark                                                                    Mode  Cnt          Score         Error  Units
-c.f.n.n.benchmark.nast.NastBenchmarkTest.requestNoReplyOneClientAsync       thrpt    5     177903.669 ?   27812.458  ops/s
-c.f.n.n.benchmark.nast.NastBenchmarkTest.requestNoReplyOneClientSync        thrpt    5      82151.287 ?   29805.368  ops/s
-c.f.n.n.benchmark.nast.NastBenchmarkTest.requestNoReplySeveralClientsAsync  thrpt    5     418135.949 ?   54902.496  ops/s
-c.f.n.n.benchmark.nast.NastBenchmarkTest.requestNoReplySeveralClientsSync   thrpt    5     115883.253 ?    6651.186  ops/s
-c.f.n.n.benchmark.nast.NastBenchmarkTest.requestReplyOneClientAsync         thrpt    5      57362.136 ?    4252.927  ops/s
-c.f.n.n.benchmark.nast.NastBenchmarkTest.requestReplyOneClientSync          thrpt    5      18914.895 ?    3982.760  ops/s
-c.f.n.n.benchmark.nast.NastBenchmarkTest.requestReplySeveralClientsAsync    thrpt    5      57162.433 ?    1683.561  ops/s
-c.f.n.n.benchmark.nast.NastBenchmarkTest.requestReplySeveralClientsSync     thrpt    5      28397.235 ?    8466.794  ops/s
-c.f.n.n.benchmark.netty.NettyBenchmarkTest.nettyOneClientAsync              thrpt    5       2613.133 ?   17661.476  ops/s
-c.f.n.n.benchmark.netty.NettyBenchmarkTest.nettyOneClientSync               thrpt    5      77079.563 ?    2843.972  ops/s
-c.f.n.n.benchmark.netty.NettyBenchmarkTest.nettySeveralClientAsync          thrpt    5       1285.504 ?    4832.195  ops/s
-c.f.n.n.benchmark.netty.NettyBenchmarkTest.nettySeveralClientsSync          thrpt    5      62151.877 ?    4401.618  ops/s
-c.f.n.n.io.frame.FrameDecoderBenchmark.decodeFrame                          thrpt    5  115980965.748 ? 6763388.787  ops/s
-c.f.n.n.io.frame.FrameDecoderBenchmark.encodeFrame                          thrpt    5   81307632.342 ? 2243395.352  ops/s
+c.f.n.n.benchmark.nast.NastBenchmarkTest.requestNoReplyOneClientAsync       thrpt    5    156220.082 ?    5125.897  ops/s
+c.f.n.n.benchmark.nast.NastBenchmarkTest.requestNoReplyOneClientSync        thrpt    5     76350.254 ?   34700.297  ops/s
+c.f.n.n.benchmark.nast.NastBenchmarkTest.requestNoReplySeveralClientsAsync  thrpt    5    390154.632 ?   22315.461  ops/s
+c.f.n.n.benchmark.nast.NastBenchmarkTest.requestNoReplySeveralClientsSync   thrpt    5     95425.885 ?    4636.737  ops/s
+c.f.n.n.benchmark.nast.NastBenchmarkTest.requestReplyOneClientAsync         thrpt    5     53029.154 ?     947.294  ops/s
+c.f.n.n.benchmark.nast.NastBenchmarkTest.requestReplyOneClientSync          thrpt    5     15497.326 ?    5131.255  ops/s
+c.f.n.n.benchmark.nast.NastBenchmarkTest.requestReplySeveralClientsAsync    thrpt    5     55128.012 ?    3183.349  ops/s
+c.f.n.n.benchmark.nast.NastBenchmarkTest.requestReplySeveralClientsSync     thrpt    5     22661.871 ?    6610.770  ops/s
+c.f.n.n.benchmark.netty.NettyBenchmarkTest.nettyOneClientAsync              thrpt    5       564.536 ?     228.552  ops/s
+c.f.n.n.benchmark.netty.NettyBenchmarkTest.nettyOneClientSync               thrpt    5     69050.246 ?    3860.910  ops/s
+c.f.n.n.benchmark.netty.NettyBenchmarkTest.nettySeveralClientAsync          thrpt    5       673.917 ?     807.266  ops/s
+c.f.n.n.benchmark.netty.NettyBenchmarkTest.nettySeveralClientsSync          thrpt    5     53745.874 ?     346.603  ops/s
+c.f.n.n.io.frame.FrameDecoderBenchmark.decodeFrame                          thrpt    5  93941018.662 ? 5792695.546  ops/s
+c.f.n.n.io.frame.FrameDecoderBenchmark.encodeFrame                          thrpt    5  76996458.093 ? 6966696.105  ops/s
 ```
  

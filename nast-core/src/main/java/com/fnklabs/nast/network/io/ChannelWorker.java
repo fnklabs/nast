@@ -12,6 +12,7 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -25,6 +26,11 @@ public class ChannelWorker implements Worker {
     private static final Logger log = LoggerFactory.getLogger(ChannelWorker.class);
 
     private final AtomicBoolean isRunning = new AtomicBoolean(true);
+
+    /**
+     * Lock that used for locking selector for processing selector keys and attaching new keys
+     */
+    private final ReentrantLock selectorLock = new ReentrantLock();
 
     public ChannelWorker(Consumer<SelectionKey> funcUnit) {
         this.funcUnit = funcUnit;
@@ -52,27 +58,39 @@ public class ChannelWorker implements Worker {
             }
 
             try {
+                selectorLock.lock();
+
                 int select = selector.select();
 
                 if (select > 0) {
-                    Set<SelectionKey> selectedKeys = selector.selectedKeys();
+                    if (selector.isOpen()) {
+                        Set<SelectionKey> selectedKeys = selector.selectedKeys();
 
-                    Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
+                        Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
 
-                    while (keyIterator.hasNext()) {
-                        SelectionKey selectionKey = keyIterator.next();
+                        while (keyIterator.hasNext()) {
+                            SelectionKey selectionKey = keyIterator.next();
 
-                        funcUnit.accept(selectionKey);
+                            funcUnit.accept(selectionKey);
 
-                        selectedKeys.remove(selectionKey);
+                            selectedKeys.remove(selectionKey);
+                        }
                     }
                 }
+            } catch (SessionClosed e) {
+                log.debug("channel closed");
+
+                decConnections();
             } catch (ConcurrentModificationException e) {
                 // no-op
-            } catch (StopWorker | IOException e) {
+            } catch (StopWorker e) {
                 isRunning.set(false);
                 log.warn("stop worker...", e);
                 break;
+            } catch (Throwable e) {
+                log.warn("can't process selector", e);
+            } finally {
+                selectorLock.unlock();
             }
         }
 
@@ -88,13 +106,18 @@ public class ChannelWorker implements Worker {
     @Override
     public SelectionKey attach(Function<Selector, SelectionKey> registrar) {
         selector.wakeup();
-        selector.wakeup();
 
-        SelectionKey selectionKey = registrar.apply(getSelector());
+        try {
+            selectorLock.lock();
 
-        incConnections();
+            SelectionKey selectionKey = registrar.apply(getSelector());
 
-        return selectionKey;
+            incConnections();
+
+            return selectionKey;
+        } finally {
+            selectorLock.unlock();
+        }
     }
 
 
@@ -105,15 +128,17 @@ public class ChannelWorker implements Worker {
         selector.wakeup();
 
         try {
+            selectorLock.lock();
+
             selector.close();
+
+            while (selector.isOpen()) { }
         } catch (IOException ex) {
             log.warn("can't close selector", ex);
+        } finally {
+            selectorLock.unlock();
         }
 
-
-        while (selector.isOpen()) {
-
-        }
 
         log.debug("worker was closed");
     }
