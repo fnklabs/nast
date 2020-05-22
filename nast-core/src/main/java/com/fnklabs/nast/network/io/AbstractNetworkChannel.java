@@ -6,6 +6,7 @@ import com.fnklabs.nast.network.io.frame.FrameException;
 import org.slf4j.Logger;
 
 import java.io.IOException;
+import java.net.SocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
@@ -32,10 +33,15 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
     private final ChannelHandler channelHandler;
     private final DataFrameMarshaller dataFrameMarshaller;
 
-    AbstractNetworkChannel(ThreadPoolExecutor executorService, ChannelHandler channelHandler, DataFrameMarshaller dataFrameMarshaller) throws ConnectionException {
+    private final int channelInBufferSize;
+    private final int channelOutBufferSize;
+
+    AbstractNetworkChannel(ThreadPoolExecutor executorService, ChannelHandler channelHandler, DataFrameMarshaller dataFrameMarshaller, int channelInBufferSize, int channelOutBufferSize) throws ConnectionException {
         this.executorService = executorService;
         this.channelHandler = channelHandler;
         this.dataFrameMarshaller = dataFrameMarshaller;
+        this.channelInBufferSize = channelInBufferSize;
+        this.channelOutBufferSize = channelOutBufferSize;
 
         for (int i = 0; i < executorService.getCorePoolSize(); i++) {
             getLogger().debug("create selector worker {}", i);
@@ -98,8 +104,7 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
     }
 
     /**
-     * Blocking method that select keys from selector.
-     * If keys was selected then selected keys will be applied to {@code keyConsumer}
+     * Blocking method that select keys from selector. If keys was selected then selected keys will be applied to {@code keyConsumer}
      *
      * @param selector    Selector from which will be selected keys
      * @param keyConsumer New {@link SelectionKey} supplier
@@ -144,7 +149,7 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
      * @return Channel session instance
      */
     ChannelSession createChannelSession(long channelID, SocketChannel socketChannel) {
-        return new ChannelSession(channelID, socketChannel);
+        return new ChannelSession(channelID, socketChannel, channelInBufferSize, channelOutBufferSize);
     }
 
     /**
@@ -162,8 +167,7 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
     abstract protected ChannelWorker createWorker();
 
     /**
-     * Gracefully shutdown selectable channel by canceling from {@link Selector}
-     * and close {@link SelectableChannel}
+     * Gracefully shutdown selectable channel by canceling from {@link Selector} and close {@link SelectableChannel}
      *
      * @param key               {@link SelectionKey} associated key with selector that could be canceled
      * @param selectableChannel SocketChannel that must be closed
@@ -188,8 +192,8 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
     }
 
     /**
-     * Register client session for {@link SelectionKey#OP_READ} {@link SelectionKey#OP_WRITE} {@link SelectionKey#OP_CONNECT} operations
-     * in less loaded worker/selector
+     * Register client session for {@link SelectionKey#OP_READ} {@link SelectionKey#OP_WRITE} {@link SelectionKey#OP_CONNECT} operations in less loaded
+     * worker/selector
      *
      * @param channelSession ChannelSession that must be registered in {@link Selector}/{@link ChannelWorker}
      *
@@ -253,7 +257,8 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
 
                 dataFrameMarshaller.encode(dataBuffer, outBuffer);
 
-                channelSession.getPendingWriteOperations().add(writeFuture);
+                channelSession.getPendingWriteOperations()
+                              .add(writeFuture);
 
                 outBuffer.flip();
             } catch (FrameException e) {
@@ -276,7 +281,7 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
             if (!channelSession.getPendingWriteOperations().isEmpty()) {
                 int writtenData = write(channelSession.getSocketChannel(), outBuffer);
 
-                getLogger().debug("data ({} bytes) was send", writtenData);
+                getLogger().debug("data ({} bytes) was send to {}", writtenData, channelSession);
                 // remove pending operation future
 
                 if (writtenData > 0 && outBuffer.remaining() == 0) {

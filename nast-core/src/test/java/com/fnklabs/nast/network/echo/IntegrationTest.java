@@ -350,7 +350,14 @@ public class IntegrationTest {
                                                                                   .build();
 
 
-        server = new ServerChannel(hostAndPort, new ServerEchoChannelHandler(100), optionsConfigurer, 1);
+        server = new ServerChannel(
+                hostAndPort,
+                new ServerEchoChannelHandler(100),
+                optionsConfigurer,
+                1,
+                64 * 1024,
+                64 * 1024
+        );
 
 
         ClientChannelHandler communicationHandler = new ClientChannelHandler(100);
