@@ -10,8 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Current implementation is not thread safe and thread safe must is guarantied by
- * worker (only on thread could read/write data from channel)
+ * Current implementation is not thread safe and thread safe must is guarantied by worker (only on thread could read/write data from channel)
  */
 @NotThreadSafe
 class ChannelSession implements Session, Closeable {
@@ -27,12 +26,12 @@ class ChannelSession implements Session, Closeable {
     private final SocketChannel socketChannel;
     private final List<WriteFuture> pendingWriteOperations = new ArrayList<>();
 
-    ChannelSession(long id, SocketChannel socketChannel) {
+    ChannelSession(long id, SocketChannel socketChannel, int inBufferSize, int outBufferSize) {
         this.id = id;
         this.socketChannel = socketChannel;
 
-        inBuffer = ByteBuffer.allocate(64 * 1024); // todo move buffer size to parameters
-        outBuffer = ByteBuffer.allocate(64 * 1024); // todo move buffer size to parameters
+        inBuffer = ByteBuffer.allocate(inBufferSize);
+        outBuffer = ByteBuffer.allocate(outBufferSize);
         outBuffer.flip();
     }
 

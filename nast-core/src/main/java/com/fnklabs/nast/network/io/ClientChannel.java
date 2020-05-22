@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -43,11 +42,12 @@ public class ClientChannel extends AbstractNetworkChannel {
     private final SocketOptionsConfigurer socketOptionsConfigurer;
 
     public ClientChannel(HostAndPort remoteAddress, ClientChannelHandler channelHandler) throws ConnectionException {
-        this(remoteAddress, channelHandler, SocketOptionsConfigurerBuilder.builder().build());
+        this(remoteAddress, channelHandler, SocketOptionsConfigurerBuilder.builder().build(), Integer.parseInt(System.getProperty("network.client.in-buf", "65536")), Integer.parseInt(System.getProperty("network.client.out-buf", "65536")));
     }
 
-    public ClientChannel(HostAndPort remoteAddress, ClientChannelHandler channelHandler, SocketOptionsConfigurer socketOptionsConfigurer) throws ConnectionException {
-        super(Executors.fixedPool(String.format("network.client.connector.io[%s]", remoteAddress), 1), channelHandler, new SizeLimitDataFrameMarshaller());
+    public ClientChannel(HostAndPort remoteAddress, ClientChannelHandler channelHandler, SocketOptionsConfigurer socketOptionsConfigurer,
+                         int clientChannelInBufferSize, int clientChannelOutBufferSize) throws ConnectionException {
+        super(Executors.fixedPool(String.format("network.client.connector.io[%s]", remoteAddress), 1), channelHandler, new SizeLimitDataFrameMarshaller(), clientChannelInBufferSize, clientChannelOutBufferSize);
 
         this.remoteAddress = remoteAddress;
         this.channelHandler = channelHandler;

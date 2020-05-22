@@ -20,10 +20,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import static java.lang.String.format;
 
 public class ServerChannel extends AbstractNetworkChannel {
-    /**
-     * stub for linking {@link ServerSocketChannel} with selector to identify server {@link ServerSocketChannel}
-     */
-    private static final long SERVER_CHANNEL_ID = -2;
 
     private static final Logger log = LoggerFactory.getLogger(ServerChannel.class);
     /**
@@ -38,11 +34,17 @@ public class ServerChannel extends AbstractNetworkChannel {
     private final SocketOptionsConfigurer socketOptionsConfigurer;
 
     public ServerChannel(HostAndPort listenHostAndPort, ChannelHandler channelHandler, int connectorPoolSize) throws IOException {
-        this(listenHostAndPort, channelHandler, SocketOptionsConfigurerBuilder.builder().build(), connectorPoolSize);
+        this(listenHostAndPort, channelHandler,
+             SocketOptionsConfigurerBuilder.builder()
+                                           .build(),
+             connectorPoolSize,
+             Integer.parseInt(System.getProperty("network.server.in-buf", "65536")),
+             Integer.parseInt(System.getProperty("network.server.out-buf", "65536"))
+        );
     }
 
-    public ServerChannel(HostAndPort listenHostAndPort, ChannelHandler channelHandler, SocketOptionsConfigurer socketOptionsConfigurer, int connectorPoolSize) throws IOException {
-        super(Executors.fixedPool(format("network.server.connector.io[%s]", listenHostAndPort), connectorPoolSize), channelHandler, new SizeLimitDataFrameMarshaller());
+    public ServerChannel(HostAndPort listenHostAndPort, ChannelHandler channelHandler, SocketOptionsConfigurer socketOptionsConfigurer, int connectorPoolSize, int clientChannelInBufferSize, int clientChannelOutBufferSize) throws IOException {
+        super(Executors.fixedPool(format("network.server.connector.io[%s]", listenHostAndPort), connectorPoolSize), channelHandler, new SizeLimitDataFrameMarshaller(), clientChannelInBufferSize, clientChannelOutBufferSize);
         this.socketOptionsConfigurer = socketOptionsConfigurer;
         opAcceptPoolExecutor = Executors.fixedPool(format("network.server.accept[%s]", listenHostAndPort), 1);
 

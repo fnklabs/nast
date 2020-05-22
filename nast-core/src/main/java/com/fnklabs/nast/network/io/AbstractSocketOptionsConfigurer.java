@@ -8,7 +8,7 @@ import java.nio.channels.NetworkChannel;
 import java.util.Objects;
 
 abstract class AbstractSocketOptionsConfigurer<T> implements SocketOptionsConfigurer {
-    private SocketOptionsConfigurer socketOptionsConfigurer;
+    private SocketOptionsConfigurer next;
 
     private final SocketOption<T> socketOption;
     private final T value;
@@ -26,14 +26,16 @@ abstract class AbstractSocketOptionsConfigurer<T> implements SocketOptionsConfig
             LoggerFactory.getLogger(getClass()).warn("can't set socket option {} to {}", socketOption, value, e);
         }
 
-        if (socketOptionsConfigurer != null) {
-            socketOptionsConfigurer.apply(networkChannel);
+        if (next != null) {
+            next.apply(networkChannel);
         }
     }
 
     @Override
     public SocketOptionsConfigurer andThen(SocketOptionsConfigurer socketOptionsConfigurer) {
-        return this.socketOptionsConfigurer = socketOptionsConfigurer;
+        this.next = socketOptionsConfigurer;
+
+        return this;
     }
 
     @Override
