@@ -132,9 +132,9 @@ public class IntegrationTest {
 
         ClientChannel[] clients = new ClientChannel[parallelClients];
 
-        ClientNoOpHandler communicationHandler = new ClientNoOpHandler(1);
 
         for (int i = 0; i < parallelClients; i++) {
+            ClientNoOpHandler communicationHandler = new ClientNoOpHandler(1);
             clients[i] = new ClientChannel(hostAndPort, communicationHandler);
         }
 
@@ -179,11 +179,9 @@ public class IntegrationTest {
     public void syncRequestsSendAndClose() throws Exception {
         server = new ServerChannel(hostAndPort, new ServerEchoChannelHandler(1000), 1);
 
-
-        ClientChannelHandler communicationHandler = new ClientChannelHandler(1000);
-
         for (int i = 0; i < ATTEMPTS; i++) {
 
+            ClientChannelHandler communicationHandler = new ClientChannelHandler(1000);
             try (ClientChannel client = new ClientChannel(hostAndPort, communicationHandler)) {
 
                 CompletableFuture<ByteBuffer> replyFuture = new CompletableFuture<>();

@@ -1,6 +1,7 @@
 package com.fnklabs.nast.network.echo;
 
 import com.fnklabs.nast.network.AbstractClientChannelHandler;
+import com.fnklabs.nast.network.io.ChannelClosedException;
 import com.fnklabs.nast.network.io.Session;
 import org.slf4j.LoggerFactory;
 
@@ -36,5 +37,14 @@ public class ClientChannelHandler extends AbstractClientChannelHandler {
         }
 
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public void onDisconnect(Session session) {
+        super.onDisconnect(session);
+
+        REPLY_FUTURES.forEach((k, v) -> {
+            v.completeExceptionally(new ChannelClosedException(null));
+        });
     }
 }

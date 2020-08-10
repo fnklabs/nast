@@ -6,6 +6,10 @@
         </encoder>
     </appender>
 
+    <appender name="com.fnklabs.nast.network">
+        <level value="debug"/>
+    </appender>
+
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>
