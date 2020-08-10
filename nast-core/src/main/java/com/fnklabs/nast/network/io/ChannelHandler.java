@@ -31,7 +31,9 @@ public interface ChannelHandler extends AutoCloseable {
     WriteFuture onWrite(Session session);
 
     /**
-     * Handle disconnect connect event
+     * Handle disconnect connection event.
+     * <p>
+     * If channel is disconnected new write events could not be accepted
      *
      * @param session Session that was disconnected
      */

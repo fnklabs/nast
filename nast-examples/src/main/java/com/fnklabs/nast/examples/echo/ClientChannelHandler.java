@@ -1,5 +1,6 @@
 package com.fnklabs.nast.examples.echo;
 
+import com.fnklabs.nast.network.io.ChannelClosedException;
 import com.fnklabs.nast.network.io.Session;
 import com.fnklabs.nast.network.io.WriteFuture;
 
@@ -7,13 +8,20 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClientChannelHandler implements com.fnklabs.nast.network.io.ClientChannelHandler {
     private final ArrayBlockingQueue<WriteFuture> writeFutureQueue = new ArrayBlockingQueue<>(100);
+    private final AtomicBoolean connected = new AtomicBoolean(true);
 
     @Override
     public WriteFuture send(ByteBuffer dataBuf) {
         WriteFuture writeFuture = new WriteFuture(dataBuf);
+        if (!connected.get()) {
+            writeFuture.completeExceptionally(new ChannelClosedException(null)); // todo remove it
+
+            return writeFuture;
+        }
 
         writeFutureQueue.offer(writeFuture);
 
@@ -36,6 +44,13 @@ public class ClientChannelHandler implements com.fnklabs.nast.network.io.ClientC
 
     @Override
     public void onDisconnect(Session session) {
-        writeFutureQueue.clear();
+        if (connected.compareAndSet(true, false)) {
+
+            for (WriteFuture writeFuture : writeFutureQueue) {
+                writeFuture.completeExceptionally(new ChannelClosedException(null)); // todo change exception type
+            }
+
+            writeFutureQueue.clear();
+        }
     }
 }

@@ -11,12 +11,12 @@ import java.nio.ByteBuffer;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 
-class ServerEchoChannelHandler extends AbstractServerChannelHandler {
+public class ServerEchoChannelHandler extends AbstractServerChannelHandler {
 
     public static final Logger log = LoggerFactory.getLogger(ServerEchoChannelHandler.class);
 
 
-    ServerEchoChannelHandler(int queueSize) {
+    public ServerEchoChannelHandler(int queueSize) {
         super(queueSize);
     }
 
