@@ -53,7 +53,11 @@ class ChannelSession implements Session, Closeable {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        for (WriteFuture pendingWriteOperation : pendingWriteOperations) {
+            pendingWriteOperation.completeExceptionally(new ChannelClosedException(socketChannel));
+        }
+    }
 
 
     @Override

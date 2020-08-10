@@ -78,7 +78,7 @@ public class ChannelWorker implements Worker {
                     }
                 }
             } catch (SessionClosed e) {
-                log.debug("channel closed");
+                log.debug("session was closed", e);
 
                 decConnections();
             } catch (ConcurrentModificationException e) {
@@ -123,24 +123,28 @@ public class ChannelWorker implements Worker {
 
     @Override
     public void close() {
-        isRunning.set(false);
+        if (isRunning.compareAndSet(true, false)) {
+            selector.wakeup();
 
-        selector.wakeup();
+            try {
+                selectorLock.lock();
 
-        try {
-            selectorLock.lock();
+                for (SelectionKey key : selector.keys()) {
+                    key.channel().close();
+                }
+                selector.close();
 
-            selector.close();
+                while (selector.isOpen()) { }
+            } catch (IOException ex) {
+                log.warn("can't close selector", ex);
+            } finally {
+                selectorLock.unlock();
+            }
 
-            while (selector.isOpen()) { }
-        } catch (IOException ex) {
-            log.warn("can't close selector", ex);
-        } finally {
-            selectorLock.unlock();
+
+            log.debug("worker was closed");
         }
 
-
-        log.debug("worker was closed");
     }
 
     private Selector getSelector() {

@@ -9,8 +9,10 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.util.Calendar;
 import java.util.concurrent.CompletableFuture;
 
 public class ClientChannel extends AbstractNetworkChannel {
@@ -130,5 +132,14 @@ public class ClientChannel extends AbstractNetworkChannel {
      */
     public CompletableFuture<Void> send(ByteBuffer data) {
         return channelHandler.send(data);
+    }
+
+    @Override
+    void closeChannel(SelectionKey key, SelectableChannel selectableChannel) {
+        try {
+            super.closeChannel(key, selectableChannel);
+        } catch (SessionClosed e) {
+            throw new StopWorker();
+        }
     }
 }

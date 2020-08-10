@@ -24,6 +24,18 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 
 
+/**
+ * Abstract network channel that provide base methods for
+ * <ul>
+ *     <li>Register SocketChannel at Selector</li>
+ *     <li>Select new events from Selector</li>
+ *     <li>processOpRead events</li>
+ *     <li>processOpWrite events</li>
+ *     <li>processOpAccept events</li>
+ *     <li>processOpConnect events</li>
+ *     <li>Close channel</li>
+ * </ul>
+ */
 abstract class AbstractNetworkChannel implements AutoCloseable {
     /**
      * Connector pool executor
@@ -187,6 +199,8 @@ abstract class AbstractNetworkChannel implements AutoCloseable {
         session.close();
 
         key.selector().wakeup();
+
+        channelHandler.onDisconnect(session);
 
         throw new SessionClosed();
     }
